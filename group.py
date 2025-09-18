@@ -375,6 +375,9 @@ async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_quest
         logger.error(f"Error generating quiz with Perplexity: {e}")
         return None
 
+# Remove any APScheduler usage that might cause timezone issues
+# We'll use the built-in job queue instead
+
 # Register handlers function
 def register_handlers(application):
     """Register all quiz-related handlers."""
