@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, PollAnswerHandler
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, PollAnswerHandler
 
 # Configure logging
 logging.basicConfig(
@@ -19,17 +19,17 @@ PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 import group
 import personal
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update: Update, context: CallbackContext):
     """Send a message when the command /start is issued."""
     user = update.effective_user
     chat_type = update.effective_chat.type
     
     if chat_type == "private":
         # Use the new start command with buttons from personal.py
-        await personal.start_command(update, context)
+        asyncio.run(personal.start_command(update, context))
     else:
         # Group chat
-        await update.message.reply_text(
+        update.message.reply_text(
             f"👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
             "I will post quiz questions as polls in this group every 30 seconds.\n\n"
             "Use /quiz to start a quiz session in this group!\n"
@@ -38,7 +38,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Use /help for more information"
         )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def help_command(update: Update, context: CallbackContext):
     """Send a message when the command /help is issued."""
     chat_type = update.effective_chat.type
     
@@ -86,9 +86,9 @@ This bot works only in groups. Here's what you can do:
 - English
 - Information Practices
 """
-    await update.message.reply_text(help_text, parse_mode='Markdown')
+    update.message.reply_text(help_text, parse_mode='Markdown')
 
-async def subjects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def subjects_command(update: Update, context: CallbackContext):
     """Show available subjects."""
     subjects = [
         "Accountancy", "Business Studies", "Economics", 
@@ -96,46 +96,46 @@ async def subjects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     
     text = "📖 *Available Subjects:*\n\n" + "\n".join([f"• {subject}" for subject in subjects])
-    await update.message.reply_text(text, parse_mode='Markdown')
+    update.message.reply_text(text, parse_mode='Markdown')
 
-async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def quiz_command(update: Update, context: CallbackContext):
     """Handle /quiz command based on chat type."""
     chat_type = update.effective_chat.type
     
     if chat_type == "private":
         # Private chat - inform user that quizzes are only for groups
-        await update.message.reply_text(
+        update.message.reply_text(
             "❌ Quizzes are only available in groups!\n\n"
             "Please add me to a group using the 'Add me in Group' button from the main menu, "
             "then use /quiz in the group to start quizzes."
         )
     else:
         # Group chat - proceed with group quiz
-        await group.group_quiz_command(update, context)
+        asyncio.run(group.group_quiz_command(update, context))
 
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def stop_command(update: Update, context: CallbackContext):
     """Handle /stop command for group quizzes."""
-    await group.stop_command(update, context)
+    asyncio.run(group.stop_command(update, context))
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def button_handler(update: Update, context: CallbackContext):
     """Handle button callbacks."""
     query = update.callback_query
-    await query.answer()
+    query.answer()
     data = query.data
     
     # Handle main menu buttons
     if data.startswith('main_'):
         action = data[5:]
-        await personal.handle_main_menu(update, context, action)
+        asyncio.run(personal.handle_main_menu(update, context, action))
     
     # Handle group subject selection
     elif data.startswith('group_subject_'):
         subject = data.split('_', 2)[2]
-        await group.handle_group_subject_selection(update, context, subject)
+        asyncio.run(group.handle_group_subject_selection(update, context, subject))
     
     # Handle other buttons
     elif data == 'new_quiz':
-        await quiz_command(update, context)
+        quiz_command(update, context)
     else:
         # For other buttons, show group-only message
         keyboard = [
@@ -143,7 +143,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
+        query.edit_message_text(
             text="❌ Quizzes are only available in groups!\n\n"
                  "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
             reply_markup=reply_markup
@@ -161,29 +161,12 @@ def main():
         return
     
     try:
-        # Create the Application with older compatible version
-        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-        # Add handlers
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("quiz", quiz_command))
-        application.add_handler(CommandHandler("stop", stop_command))
-        application.add_handler(CommandHandler("subjects", subjects_command))
-        application.add_handler(CallbackQueryHandler(button_handler))
-        application.add_handler(PollAnswerHandler(group.handle_poll_answer))
-
-        # Start the Bot
-        print("Commerce Quiz Bot is running with Perplexity AI...")
-        application.run_polling()
+        # Create the Updater and pass it your bot's token
+        updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
         
-    except Exception as e:
-        logger.error(f"Error starting bot: {e}")
-        # Fallback for older python-telegram-bot versions
-        from telegram.ext import Updater
-        updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+        # Get the dispatcher to register handlers
         dispatcher = updater.dispatcher
-        
+
         # Add handlers
         dispatcher.add_handler(CommandHandler("start", start))
         dispatcher.add_handler(CommandHandler("help", help_command))
@@ -191,10 +174,15 @@ def main():
         dispatcher.add_handler(CommandHandler("stop", stop_command))
         dispatcher.add_handler(CommandHandler("subjects", subjects_command))
         dispatcher.add_handler(CallbackQueryHandler(button_handler))
-        
-        print("Commerce Quiz Bot is running (fallback mode)...")
+        dispatcher.add_handler(PollAnswerHandler(group.handle_poll_answer))
+
+        # Start the Bot
+        print("Commerce Quiz Bot is running with Perplexity AI...")
         updater.start_polling()
         updater.idle()
+        
+    except Exception as e:
+        logger.error(f"Error starting bot: {e}")
 
 if __name__ == '__main__':
     main()
