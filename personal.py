@@ -2,7 +2,8 @@ import logging
 import random
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackContext
+from telegram.ext import ContextTypes
+from telegram.error import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +79,10 @@ quiz_topics = {
 }
 
 # Start command with welcome message and buttons
-async def start_command(update: Update, context: CallbackContext):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message with main menu buttons."""
     keyboard = [
-        [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/Quizonomics_bot?startgroup=true")],
+        [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
         [InlineKeyboardButton("❓ Help", callback_data='main_help')],
         [InlineKeyboardButton("👤 Owner", url="https://t.me/komresu")]
     ]
@@ -96,7 +97,7 @@ async def start_command(update: Update, context: CallbackContext):
     
     await update.message.reply_text(welcome_text, reply_markup=reply_markup)
 
-async def handle_main_menu(update: Update, context: CallbackContext, action: str):
+async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str):
     """Handle main menu button clicks."""
     query = update.callback_query
     await query.answer()
@@ -114,8 +115,11 @@ async def handle_main_menu(update: Update, context: CallbackContext, action: str
         )
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
-    
+        try:
+            await query.edit_message_text(text=text, reply_markup=reply_markup)
+        except BadRequest:
+            logger.error("Could not edit message in handle_main_menu")
+
     elif action == 'help':
         # Help information
         text = (
@@ -131,39 +135,49 @@ async def handle_main_menu(update: Update, context: CallbackContext, action: str
         )
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
-    
+        try:
+            await query.edit_message_text(text=text, reply_markup=reply_markup)
+        except BadRequest:
+            logger.error("Could not edit message in handle_main_menu")
+
     elif action == 'owner':
         # Owner information with direct link
         text = (
             "👤 Bot Owner Information:\n\n"
             "Name: Quiz Bot Administrator\n"
-            "Contact: @quizadmin\n\n"
+            "Contact: @komresu\n\n"
             "For questions, suggestions, or support, please contact the owner directly."
         )
         keyboard = [
-            [InlineKeyboardButton("📞 Contact Owner", url="https://t.me/quizadmin")],
+            [InlineKeyboardButton("📞 Contact Owner", url="https://t.me/komresu")],
             [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
-    
+        try:
+            await query.edit_message_text(text=text, reply_markup=reply_markup)
+        except BadRequest:
+            logger.error("Could not edit message in handle_main_menu")
+
     elif action == 'back':
         # Return to main menu
         keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/your_bot_username?startgroup=true")],
+            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
             [InlineKeyboardButton("❓ Help", callback_data='main_help')],
-            [InlineKeyboardButton("👤 Owner", url="https://t.me/quizadmin")]
+            [InlineKeyboardButton("👤 Owner", url="https://t.me/komresu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="Main menu:",
-            reply_markup=reply_markup
-        )
+        try:
+            await query.edit_message_text(
+                text="Main menu:",
+                reply_markup=reply_markup
+            )
+        except BadRequest:
+            logger.error("Could not edit message in handle_main_menu")
 
-async def handle_callback_query(update: Update, context: CallbackContext):
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle all callback queries."""
     query = update.callback_query
+    await query.answer()
     data = query.data
     
     if data.startswith('main_'):
@@ -174,7 +188,16 @@ async def handle_callback_query(update: Update, context: CallbackContext):
         exam = data[5:]
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text=f"{exam.upper()} exam preparation is coming soon! Check back later for updates.",
-            reply_markup=reply_markup
-        )
+        try:
+            await query.edit_message_text(
+                text=f"{exam.upper()} exam preparation is coming soon! Check back later for updates.",
+                reply_markup=reply_markup
+            )
+        except BadRequest:
+            logger.error("Could not edit message in handle_callback_query")
+
+# Register handlers function
+def register_handlers(application):
+    """Register all personal module handlers."""
+    # Note: The main button handler is registered in main.py
+    pass
