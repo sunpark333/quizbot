@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, PollAnswerHandler
 
@@ -119,6 +120,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
     query = update.callback_query
+    await query.answer()
     data = query.data
     
     # Handle main menu buttons
@@ -126,92 +128,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         action = data[5:]
         await personal.handle_main_menu(update, context, action)
     
-    # Handle category selection (for backward compatibility)
-    elif data.startswith('category_'):
-        category = data[9:]
-        if category == 'back':
-            await personal.handle_main_menu(update, context, 'back')
-        else:
-            # Inform user that quizzes are group-only
-            keyboard = [
-                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-                [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(
-                text="❌ Quizzes are only available in groups!\n\n"
-                     "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-                reply_markup=reply_markup
-            )
-    
-    # Handle subject selection (for backward compatibility)
-    elif data.startswith('subject_'):
-        # Inform user that quizzes are group-only
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-                 "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    
     # Handle group subject selection
     elif data.startswith('group_subject_'):
         subject = data.split('_', 2)[2]
         await group.handle_group_subject_selection(update, context, subject)
     
-    # Handle difficulty selection (for backward compatibility)
-    elif data.startswith('diff_'):
-        # Inform user that quizzes are group-only
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-                 "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    
-    # Handle answer selection (for backward compatibility)
-    elif data.startswith('answer_'):
-        # Inform user that quizzes are group-only
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-                 "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    
-    # Handle continue button (for backward compatibility)
-    elif data == 'continue':
-        # Inform user that quizzes are group-only
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-                 "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    
-    # Handle new quiz button
+    # Handle other buttons
     elif data == 'new_quiz':
         await quiz_command(update, context)
-    
-    # Handle exam buttons (for backward compatibility)
-    elif data.startswith('exam_'):
-        # Inform user that quizzes are group-only
+    else:
+        # For other buttons, show group-only message
         keyboard = [
             [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
             [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
@@ -234,21 +160,41 @@ def main():
         logger.error("PERPLEXITY_API_KEY environment variable is not set!")
         return
     
-    # Create the Application and pass it your bot's token
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    try:
+        # Create the Application with older compatible version
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("quiz", quiz_command))
-    application.add_handler(CommandHandler("stop", stop_command))
-    application.add_handler(CommandHandler("subjects", subjects_command))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(PollAnswerHandler(group.handle_poll_answer))
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("quiz", quiz_command))
+        application.add_handler(CommandHandler("stop", stop_command))
+        application.add_handler(CommandHandler("subjects", subjects_command))
+        application.add_handler(CallbackQueryHandler(button_handler))
+        application.add_handler(PollAnswerHandler(group.handle_poll_answer))
 
-    # Start the Bot
-    print("Commerce Quiz Bot is running with Perplexity AI...")
-    application.run_polling()
+        # Start the Bot
+        print("Commerce Quiz Bot is running with Perplexity AI...")
+        application.run_polling()
+        
+    except Exception as e:
+        logger.error(f"Error starting bot: {e}")
+        # Fallback for older python-telegram-bot versions
+        from telegram.ext import Updater
+        updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+        dispatcher = updater.dispatcher
+        
+        # Add handlers
+        dispatcher.add_handler(CommandHandler("start", start))
+        dispatcher.add_handler(CommandHandler("help", help_command))
+        dispatcher.add_handler(CommandHandler("quiz", quiz_command))
+        dispatcher.add_handler(CommandHandler("stop", stop_command))
+        dispatcher.add_handler(CommandHandler("subjects", subjects_command))
+        dispatcher.add_handler(CallbackQueryHandler(button_handler))
+        
+        print("Commerce Quiz Bot is running (fallback mode)...")
+        updater.start_polling()
+        updater.idle()
 
 if __name__ == '__main__':
     main()
