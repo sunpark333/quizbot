@@ -1,8 +1,11 @@
 import logging
 import random
 import asyncio
+import json
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Poll
-from telegram.ext import CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.error import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +14,7 @@ group_quizzes = {}
 poll_answers = {}
 user_scores = {}
 
-async def group_quiz_command(update: Update, context: CallbackContext):
+async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start a new group quiz by asking for subject."""
     chat_id = update.effective_chat.id
     
@@ -42,7 +45,7 @@ async def group_quiz_command(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text('Choose a subject for the group quiz:', reply_markup=reply_markup)
 
-async def stop_command(update: Update, context: CallbackContext):
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Stop an ongoing group quiz."""
     chat_id = update.effective_chat.id
     
@@ -54,21 +57,25 @@ async def stop_command(update: Update, context: CallbackContext):
     group_quizzes[chat_id]['active'] = False
     
     # Remove the job from job queue
-    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
-    for job in current_jobs:
-        job.schedule_removal()
+    if context.job_queue:
+        current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
+        for job in current_jobs:
+            job.schedule_removal()
     
     # Send leaderboard
     await send_leaderboard(context, chat_id)
     
     # Clean up
-    del group_quizzes[chat_id]
+    if chat_id in group_quizzes:
+        del group_quizzes[chat_id]
     await update.message.reply_text("✅ Quiz stopped successfully!")
 
-async def handle_group_subject_selection(update: Update, context: CallbackContext, subject: str):
+async def handle_group_subject_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle group subject selection."""
     query = update.callback_query
-    chat_id = query.message.chat_id
+    await query.answer()
+    chat_id = query.message.chat.id
+    subject = query.data.replace('group_subject_', '')
     
     # Initialize group quiz
     group_quizzes[chat_id] = {
@@ -87,29 +94,7 @@ async def handle_group_subject_selection(update: Update, context: CallbackContex
     if quiz:
         group_quizzes[chat_id]['questions'] = quiz
         # Start posting questions every 30 seconds
-        context.job_queue.run_repeating(
-            post_group_question, 
-            interval=30, 
-            first=1, 
-            data=chat_id, 
-            name=str(chat_id)
-        )
-        await query.edit_message_text(text=f"✅ Group quiz started! {subject} questions will be posted as polls every 30 seconds.")
-    else:
-        # Use fallback questions if API fails
-        from personal import fallback_questions
-        if subject in fallback_questions:
-            # Create 20 questions by repeating and modifying fallback questions
-            questions = []
-            for i in range(30):
-                base_q = fallback_questions[subject][i % len(fallback_questions[subject])]
-                # Modify the question slightly to make it different
-                new_q = base_q.copy()
-                new_q['question'] = f"{i+1}. {base_q['question']}"
-                questions.append(new_q)
-            
-            group_quizzes[chat_id]['questions'] = questions
-            # Start posting questions every 30 seconds
+        if context.job_queue:
             context.job_queue.run_repeating(
                 post_group_question, 
                 interval=30, 
@@ -117,13 +102,42 @@ async def handle_group_subject_selection(update: Update, context: CallbackContex
                 data=chat_id, 
                 name=str(chat_id)
             )
-            await query.edit_message_text(text=f"✅ Group quiz started! {subject} questions will be posted as polls every 30 seconds.")
-        else:
+        await query.edit_message_text(text=f"✅ Group quiz started! {subject} questions will be posted as polls every 30 seconds.")
+    else:
+        # Use fallback questions if API fails
+        try:
+            from personal import fallback_questions
+            if subject in fallback_questions:
+                # Create 20 questions by repeating and modifying fallback questions
+                questions = []
+                for i in range(30):
+                    base_q = fallback_questions[subject][i % len(fallback_questions[subject])]
+                    # Modify the question slightly to make it different
+                    new_q = base_q.copy()
+                    new_q['question'] = f"{i+1}. {base_q['question']}"
+                    questions.append(new_q)
+                
+                group_quizzes[chat_id]['questions'] = questions
+                # Start posting questions every 30 seconds
+                if context.job_queue:
+                    context.job_queue.run_repeating(
+                        post_group_question, 
+                        interval=30, 
+                        first=1, 
+                        data=chat_id, 
+                        name=str(chat_id)
+                    )
+                await query.edit_message_text(text=f"✅ Group quiz started! {subject} questions will be posted as polls every 30 seconds.")
+            else:
+                await query.edit_message_text(
+                    text="❌ Sorry, I couldn't generate a quiz right now. Please try again later."
+                )
+        except ImportError:
             await query.edit_message_text(
                 text="❌ Sorry, I couldn't generate a quiz right now. Please try again later."
             )
 
-def post_group_question(context: CallbackContext):
+async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
     """Post a question as a poll to the group every 30 seconds."""
     chat_id = context.job.data
     
@@ -139,13 +153,16 @@ def post_group_question(context: CallbackContext):
         context.job.schedule_removal()
         
         # Send quiz completion message
-        asyncio.run(context.bot.send_message(
-            chat_id=chat_id,
-            text="🎉 Group quiz completed! Use /quiz to start a new one."
-        ))
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="🎉 Group quiz completed! Use /quiz to start a new one."
+            )
+        except BadRequest:
+            logger.error(f"Could not send message to chat {chat_id}")
         
         # Send leaderboard
-        asyncio.run(send_leaderboard(context, chat_id))
+        await send_leaderboard(context, chat_id)
         
         # Clean up
         if chat_id in group_quizzes:
@@ -159,29 +176,33 @@ def post_group_question(context: CallbackContext):
     poll_options = question['options']
     
     # Send the poll
-    message = asyncio.run(context.bot.send_poll(
-        chat_id=chat_id,
-        question=poll_question,
-        options=poll_options,
-        type=Poll.QUIZ,
-        correct_option_id=question['correct_answer'],
-        is_anonymous=False,
-        open_period=25  # Poll stays open for 25 seconds
-    ))
-    
-    # Store poll information
-    poll_id = message.poll.id
-    quiz_data['poll_ids'].append(poll_id)
-    poll_answers[poll_id] = {
-        'chat_id': chat_id,
-        'question_index': current_index,
-        'correct': False,
-        'explanation': question.get('explanation', '')
-    }
-    
-    quiz_data['current_question'] += 1
+    try:
+        message = await context.bot.send_poll(
+            chat_id=chat_id,
+            question=poll_question,
+            options=poll_options,
+            type=Poll.QUIZ,
+            correct_option_id=question['correct_answer'],
+            is_anonymous=False,
+            open_period=25  # Poll stays open for 25 seconds
+        )
+        
+        # Store poll information
+        poll_id = message.poll.id
+        quiz_data['poll_ids'].append(poll_id)
+        poll_answers[poll_id] = {
+            'chat_id': chat_id,
+            'question_index': current_index,
+            'correct': False,
+            'explanation': question.get('explanation', '')
+        }
+        
+        quiz_data['current_question'] += 1
+    except BadRequest as e:
+        logger.error(f"Failed to send poll: {e}")
+        quiz_data['current_question'] += 1
 
-async def handle_poll_answer(update: Update, context: CallbackContext):
+async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle when a user answers a poll."""
     answer = update.poll_answer
     poll_id = answer.poll_id
@@ -220,16 +241,19 @@ async def handle_poll_answer(update: Update, context: CallbackContext):
                 chat_id=user_id,
                 text=f"✅ Correct! {question.get('explanation', '')}"
             )
-        except Exception as e:
-            logger.error(f"Could not send message to user: {e}")
+        except BadRequest:
+            logger.error(f"Could not send message to user {user_id}")
 
-async def send_leaderboard(context, chat_id):
+async def send_leaderboard(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     """Send the leaderboard with all participants' scores."""
     if chat_id not in user_scores or not user_scores[chat_id]:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="📊 No one participated in this quiz. 😢"
-        )
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="📊 No one participated in this quiz. 😢"
+            )
+        except BadRequest:
+            logger.error(f"Could not send message to chat {chat_id}")
         return
     
     # Get user names and scores
@@ -241,8 +265,8 @@ async def send_leaderboard(context, chat_id):
             if user.user.last_name:
                 user_name += f" {user.user.last_name}"
             leaderboard_data.append((user_name, score))
-        except Exception as e:
-            logger.error(f"Could not get user info: {e}")
+        except BadRequest:
+            logger.error(f"Could not get user info for {user_id}")
             leaderboard_data.append((f"User {user_id}", score))
     
     # Sort by score (descending)
@@ -261,11 +285,18 @@ async def send_leaderboard(context, chat_id):
         
         leaderboard_text += f"{medal}{i+1}. {user_name}: {score} points\n"
     
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=leaderboard_text,
-        parse_mode='Markdown'
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=leaderboard_text,
+            parse_mode='Markdown'
+        )
+    except BadRequest:
+        # Fallback without markdown
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=leaderboard_text.replace('*', '')
+        )
 
 async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_questions: int = 20):
     """Generate quiz questions using Perplexity AI API."""
@@ -318,8 +349,7 @@ async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_quest
         }
         
         # Make the API request
-        import requests
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             # Parse the response
@@ -327,7 +357,6 @@ async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_quest
             content = response_data['choices'][0]['message']['content']
             
             # Extract JSON from the response
-            import json
             try:
                 # Try to find JSON array in the response
                 start_idx = content.find('[')
@@ -345,3 +374,10 @@ async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_quest
     except Exception as e:
         logger.error(f"Error generating quiz with Perplexity: {e}")
         return None
+
+# Register handlers function
+def register_handlers(application):
+    """Register all quiz-related handlers."""
+    application.add_handler(CommandHandler("groupquiz", group_quiz_command))
+    application.add_handler(CommandHandler("stopquiz", stop_command))
+    application.add_handler(CallbackQueryHandler(handle_group_subject_selection, pattern="^group_subject_"))
