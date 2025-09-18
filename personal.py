@@ -1,7 +1,8 @@
 import logging
 import random
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ quiz_topics = {
 }
 
 # Start command with welcome message and buttons
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: CallbackContext):
     """Send welcome message with main menu buttons."""
     keyboard = [
         [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/Quizonomics_bot?startgroup=true")],
@@ -95,7 +96,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(welcome_text, reply_markup=reply_markup)
 
-async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str):
+async def handle_main_menu(update: Update, context: CallbackContext, action: str):
     """Handle main menu button clicks."""
     query = update.callback_query
     await query.answer()
@@ -160,7 +161,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, a
             reply_markup=reply_markup
         )
 
-async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_callback_query(update: Update, context: CallbackContext):
     """Handle all callback queries."""
     query = update.callback_query
     data = query.data
