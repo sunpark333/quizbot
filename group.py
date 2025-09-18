@@ -1,7 +1,8 @@
 import logging
 import random
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Poll
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ group_quizzes = {}
 poll_answers = {}
 user_scores = {}
 
-async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def group_quiz_command(update: Update, context: CallbackContext):
     """Start a new group quiz by asking for subject."""
     chat_id = update.effective_chat.id
     
@@ -41,7 +42,7 @@ async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text('Choose a subject for the group quiz:', reply_markup=reply_markup)
 
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stop_command(update: Update, context: CallbackContext):
     """Stop an ongoing group quiz."""
     chat_id = update.effective_chat.id
     
@@ -64,7 +65,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del group_quizzes[chat_id]
     await update.message.reply_text("✅ Quiz stopped successfully!")
 
-async def handle_group_subject_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, subject: str):
+async def handle_group_subject_selection(update: Update, context: CallbackContext, subject: str):
     """Handle group subject selection."""
     query = update.callback_query
     chat_id = query.message.chat_id
@@ -122,7 +123,7 @@ async def handle_group_subject_selection(update: Update, context: ContextTypes.D
                 text="❌ Sorry, I couldn't generate a quiz right now. Please try again later."
             )
 
-async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
+def post_group_question(context: CallbackContext):
     """Post a question as a poll to the group every 30 seconds."""
     chat_id = context.job.data
     
@@ -138,13 +139,13 @@ async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
         context.job.schedule_removal()
         
         # Send quiz completion message
-        await context.bot.send_message(
+        asyncio.run(context.bot.send_message(
             chat_id=chat_id,
             text="🎉 Group quiz completed! Use /quiz to start a new one."
-        )
+        ))
         
         # Send leaderboard
-        await send_leaderboard(context, chat_id)
+        asyncio.run(send_leaderboard(context, chat_id))
         
         # Clean up
         if chat_id in group_quizzes:
@@ -158,7 +159,7 @@ async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
     poll_options = question['options']
     
     # Send the poll
-    message = await context.bot.send_poll(
+    message = asyncio.run(context.bot.send_poll(
         chat_id=chat_id,
         question=poll_question,
         options=poll_options,
@@ -166,7 +167,7 @@ async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
         correct_option_id=question['correct_answer'],
         is_anonymous=False,
         open_period=25  # Poll stays open for 25 seconds
-    )
+    ))
     
     # Store poll information
     poll_id = message.poll.id
@@ -180,7 +181,7 @@ async def post_group_question(context: ContextTypes.DEFAULT_TYPE):
     
     quiz_data['current_question'] += 1
 
-async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_poll_answer(update: Update, context: CallbackContext):
     """Handle when a user answers a poll."""
     answer = update.poll_answer
     poll_id = answer.poll_id
