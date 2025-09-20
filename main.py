@@ -45,7 +45,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Error in personal.start_command: {e}")
                 await update.message.reply_text("Personal module error occurred.")
         else:
-            await update.message.reply_text("Personal module not available.")
+            # Basic welcome message if personal module is not available
+            keyboard = [
+                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("📚 Help", callback_data='help')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "🤖 *Welcome to 12th Grade Commerce Quiz Bot!*\n\n"
+                "This bot provides quiz functionality in groups.\n\n"
+                "Please add me to a group to start quizzes!",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
     else:
         await update.message.reply_text(
             f"👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
@@ -131,7 +143,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await group.group_quiz_command(update, context)
             except Exception as e:
                 logger.error(f"Error in group.group_quiz_command: {e}")
-                await update.message.reply_text("Group module error occurred.")
+                await update.message.reply_text("Group quiz functionality temporarily unavailable. Please try again later.")
         else:
             await update.message.reply_text("Group module not available.")
 
@@ -142,17 +154,26 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await group.stop_command(update, context)
         except Exception as e:
             logger.error(f"Error in group.stop_command: {e}")
-            await update.message.reply_text("Stop command error occurred.")
+            await update.message.reply_text("Stop command error occurred. Quiz may continue running.")
     else:
         await update.message.reply_text("Group module not available.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
     query = update.callback_query
+    
+    # Always answer the callback query first to prevent timeout
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.error(f"Error answering callback query: {e}")
+    
     data = query.data
     
     try:
-        if data.startswith('main_') and personal:
+        if data == 'help':
+            await help_command(update, context)
+        elif data.startswith('main_') and personal:
             action = data[5:]
             await personal.handle_main_menu(update, context, action)
         elif data.startswith('category_') and personal:
@@ -187,7 +208,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"Error in button handler: {e}")
-        await query.answer("An error occurred.")
+        # Don't try to answer callback query again here
 
 async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle poll answers."""
@@ -209,9 +230,11 @@ def main():
     # Get PORT from environment variable for Render deployment
     PORT = int(os.environ.get("PORT", 8443))
     
-    # Create the Application
+    # Create the Application with JobQueue enabled
     try:
+        from telegram.ext import JobQueue
         application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        logger.info("Application created successfully with JobQueue support")
     except Exception as e:
         logger.error(f"Failed to create application: {e}")
         return
@@ -225,6 +248,13 @@ def main():
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(PollAnswerHandler(poll_answer_handler))
     application.add_handler(CommandHandler("health", health_check))
+    
+    # Add error handler
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+        """Log the error and send a telegram message to notify the developer."""
+        logger.error(f"Exception while handling an update: {context.error}")
+    
+    application.add_error_handler(error_handler)
     
     # For Render deployment, use webhooks
     if "RENDER" in os.environ:
