@@ -228,7 +228,7 @@ def main():
         return
     
     # Get PORT from environment variable for Render deployment
-    PORT = int(os.environ.get("PORT", 8443))
+    PORT = int(os.environ.get("PORT", 10000))
     
     # Create the Application with JobQueue enabled
     try:
