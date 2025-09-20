@@ -14,11 +14,6 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
-# Health check endpoint for UptimeRobot
-from telegram.ext import TypeHandler
-async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot is active and running!")
-
 # Import group and personal modules
 import group
 import personal
@@ -120,6 +115,10 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stop command for group quizzes."""
     await group.stop_command(update, context)
+
+async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Health check endpoint for UptimeRobot"""
+    await update.message.reply_text("Bot is active and running!")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
@@ -228,8 +227,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup
         )
 
-def main():    
-
+def main():
     """Start the bot."""
     # Create the Application and pass it your bot's token
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -240,10 +238,9 @@ def main():
     application.add_handler(CommandHandler("quiz", quiz_command))
     application.add_handler(CommandHandler("stop", stop_command))
     application.add_handler(CommandHandler("subjects", subjects_command))
+    application.add_handler(CommandHandler("health", health_check))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(PollAnswerHandler(group.handle_poll_answer))
-    application.add_handler(CommandHandler("health", health_check))
-
 
     # Start the Bot
     print("Commerce Quiz Bot is running with Perplexity AI...")
