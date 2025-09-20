@@ -1,4 +1,69 @@
 import os
+import sys
+import logging
+
+# Python 3.13 compatibility patch for imghdr
+try:
+    import imghdr
+except ModuleNotFoundError:
+    # Create a custom imghdr implementation
+    import types
+    imghdr = types.ModuleType('imghdr')
+    
+    def what(file, h=None):
+        """
+        Determine the type of an image file
+        """
+        if h is None:
+            if isinstance(file, str):
+                with open(file, 'rb') as f:
+                    h = f.read(32)
+            else:
+                location = file.tell()
+                h = file.read(32)
+                file.seek(location)
+        
+        if not h:
+            return None
+        
+        # Check for common image formats
+        if h.startswith(b'\xff\xd8\xff'):
+            return 'jpeg'
+        elif h.startswith(b'\x89PNG\r\n\x1a\n'):
+            return 'png'
+        elif h.startswith(b'GIF87a') or h.startswith(b'GIF89a'):
+            return 'gif'
+        elif h.startswith(b'BM'):
+            return 'bmp'
+        elif h.startswith(b'II*\x00') or h.startswith(b'MM\x00*'):
+            return 'tiff'
+        elif h.startswith(b'RIFF') and h[8:12] == b'WEBP':
+            return 'webp'
+        
+        # Try using Pillow for more formats if available
+        try:
+            from PIL import Image
+            if isinstance(file, str):
+                with Image.open(file) as img:
+                    return img.format.lower() if img.format else None
+            else:
+                location = file.tell()
+                file.seek(0)
+                with Image.open(file) as img:
+                    result = img.format.lower() if img.format else None
+                    file.seek(location)
+                    return result
+        except ImportError:
+            pass
+        except:
+            pass
+        
+        return None
+    
+    imghdr.what = what
+    sys.modules['imghdr'] = imghdr
+
+import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, PollAnswerHandler
