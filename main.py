@@ -1,4 +1,6 @@
 import os
+import time
+import json
 import logging
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -58,14 +60,14 @@ def webhook():
     try:
         json_string = request.get_data().decode('utf-8')
         update = Update.de_json(json.loads(json_string), application.bot)
-        
+
         # Process update asynchronously
         import asyncio
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(application.process_update(update))
         loop.close()
-        
+
         return jsonify({'status': 'ok'}), 200
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
@@ -76,7 +78,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     user = update.effective_user
     chat_type = update.effective_chat.type
-    
+
     if chat_type == "private":
         if personal:
             try:
@@ -110,21 +112,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
     chat_type = update.effective_chat.type
-    
+
     if chat_type == "private":
         help_text = """
-🤖 *Quiz Bot Help - Private Chat* 🤖
-
+🤖 *Quiz Bot Help - Private Chat* 🤖  
 This bot works only in groups. Here's what you can do:
 
-*Available Commands:*
+*Available Commands:*  
 /start - Show main menu with options  
 /help - Show this help message
 
-*How to use:*
-1. Add me to your group using the 'Add me in Group' button
-2. Use /quiz in the group to start quizzes
-3. Answer poll questions in the group
+*How to use:*  
+1. Add me to your group using the 'Add me in Group' button  
+2. Use /quiz in the group to start quizzes  
+3. Answer poll questions in the group  
 
 *Note:* I don't provide quizzes in private chats, only in groups.
 """
@@ -132,28 +133,27 @@ This bot works only in groups. Here's what you can do:
         help_text = """
 📚 *12th Grade Commerce Quiz Bot Help* 📚
 
-*Available Commands:*
-/start - Start the bot
-/quiz - Start a new quiz
-/stop - Stop an ongoing group quiz
-/subjects - Show available subjects
+*Available Commands:*  
+/start - Start the bot  
+/quiz - Start a new quiz  
+/stop - Stop an ongoing group quiz  
+/subjects - Show available subjects  
 /help - Show this help message
 
-*How to use:*
-1. Use /quiz to start a new quiz
-2. Select your subject and difficulty level
-3. Answer multiple-choice questions by clicking a, b, c, or d
-4. Get your score at the end with explanations
+*How to use:*  
+1. Use /quiz to start a new quiz  
+2. Select your subject and difficulty level  
+3. Answer multiple-choice questions by clicking a, b, c, or d  
+4. Get your score at the end with explanations  
 
-*Subjects Available:*
-- Accountancy
+*Subjects Available:*  
+- Accountancy  
 - Business Studies  
-- Economics
-- Mathematics
-- English
+- Economics  
+- Mathematics  
+- English  
 - Information Practices
 """
-    
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
 async def subjects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -162,14 +162,13 @@ async def subjects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Accountancy", "Business Studies", "Economics",
         "Mathematics", "English", "Information Practices"
     ]
-    
     text = "📖 *Available Subjects:*\n\n" + "\n".join([f"• {subject}" for subject in subjects])
     await update.message.reply_text(text, parse_mode='Markdown')
 
 async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /quiz command based on chat type."""
     chat_type = update.effective_chat.type
-    
+
     if chat_type == "private":
         await update.message.reply_text(
             "❌ Quizzes are only available in groups!\n\n"
@@ -200,14 +199,11 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
     query = update.callback_query
-    
     try:
         await query.answer()
     except Exception as e:
         logger.error(f"Error answering callback query: {e}")
-    
     data = query.data
-    
     try:
         if data == 'help':
             await help_command(update, context)
@@ -225,7 +221,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
                 text="❌ Module not available or Quizzes are only available in groups!\n\n"
-                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                     "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
                 reply_markup=reply_markup
             )
     except Exception as e:
@@ -244,14 +240,13 @@ async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 def setup_bot():
     """Setup telegram bot application"""
     global application
-    
+
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN environment variable not set!")
         return None
-    
+
     try:
         application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-        
         # Add handlers
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
@@ -260,13 +255,11 @@ def setup_bot():
         application.add_handler(CommandHandler("subjects", subjects_command))
         application.add_handler(CallbackQueryHandler(button_handler))
         application.add_handler(PollAnswerHandler(poll_answer_handler))
-        
         # Error handler
         async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Exception while handling an update: {context.error}")
-        
         application.add_error_handler(error_handler)
-        
+
         logger.info("Bot application setup completed")
         return application
     except Exception as e:
@@ -275,41 +268,25 @@ def setup_bot():
 
 def main():
     """Start the Flask app with webhook"""
-    import time
-    import json
-    
     # Setup bot
     setup_bot()
-    
     if not application:
         logger.error("Failed to setup bot application")
         return
-    
-    # Get port from environment
-    PORT = int(os.environ.get("PORT", 10000))
-    
+
     # Set webhook URL
     if "RENDER" in os.environ:
         webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/webhook"
-        
-        # Set webhook asynchronously
         import asyncio
-        async def set_webhook():
-            try:
-                await application.bot.set_webhook(url=webhook_url)
-                logger.info(f"Webhook set to: {webhook_url}")
-            except Exception as e:
-                logger.error(f"Failed to set webhook: {e}")
-        
-        # Run webhook setup
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(set_webhook())
+        loop.run_until_complete(application.bot.set_webhook(url=webhook_url))
         loop.close()
-    
+        logger.info(f"Webhook set to: {webhook_url}")
+
+    # Get port from environment
+    PORT = int(os.environ.get("PORT", 10000))
     logger.info(f"Starting Flask app on port {PORT}")
-    
-    # Start Flask app
     app.run(host="0.0.0.0", port=PORT, debug=False)
 
 if __name__ == '__main__':
