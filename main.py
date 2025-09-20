@@ -1,69 +1,4 @@
 import os
-import sys
-import logging
-
-# Python 3.13 compatibility patch for imghdr
-try:
-    import imghdr
-except ModuleNotFoundError:
-    # Create a custom imghdr implementation
-    import types
-    imghdr = types.ModuleType('imghdr')
-    
-    def what(file, h=None):
-        """
-        Determine the type of an image file
-        """
-        if h is None:
-            if isinstance(file, str):
-                with open(file, 'rb') as f:
-                    h = f.read(32)
-            else:
-                location = file.tell()
-                h = file.read(32)
-                file.seek(location)
-        
-        if not h:
-            return None
-        
-        # Check for common image formats
-        if h.startswith(b'\xff\xd8\xff'):
-            return 'jpeg'
-        elif h.startswith(b'\x89PNG\r\n\x1a\n'):
-            return 'png'
-        elif h.startswith(b'GIF87a') or h.startswith(b'GIF89a'):
-            return 'gif'
-        elif h.startswith(b'BM'):
-            return 'bmp'
-        elif h.startswith(b'II*\x00') or h.startswith(b'MM\x00*'):
-            return 'tiff'
-        elif h.startswith(b'RIFF') and h[8:12] == b'WEBP':
-            return 'webp'
-        
-        # Try using Pillow for more formats if available
-        try:
-            from PIL import Image
-            if isinstance(file, str):
-                with Image.open(file) as img:
-                    return img.format.lower() if img.format else None
-            else:
-                location = file.tell()
-                file.seek(0)
-                with Image.open(file) as img:
-                    result = img.format.lower() if img.format else None
-                    file.seek(location)
-                    return result
-        except ImportError:
-            pass
-        except:
-            pass
-        
-        return None
-    
-    imghdr.what = what
-    sys.modules['imghdr'] = imghdr
-
-import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, PollAnswerHandler
@@ -94,7 +29,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Group chat
         await update.message.reply_text(
-            f"👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
+            "👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
             "I will post quiz questions as polls in this group every 30 seconds.\n\n"
             "Use /quiz to start a quiz session in this group!\n"
             "Use /stop to stop an ongoing quiz\n"
@@ -183,7 +118,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Health check endpoint for UptimeRobot"""
-    await update.message.reply_text("Bot is active and running!")
+    await update.message.reply_text("✅ Bot is active and running!")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
@@ -294,6 +229,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot."""
+    # Check if token is available
+    if not TELEGRAM_BOT_TOKEN:
+        logger.error("TELEGRAM_BOT_TOKEN environment variable is not set!")
+        return
+    
     # Create the Application and pass it your bot's token
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -308,7 +248,8 @@ def main():
     application.add_handler(PollAnswerHandler(group.handle_poll_answer))
 
     # Start the Bot
-    print("Commerce Quiz Bot is running with Perplexity AI...")
+    logger.info("Commerce Quiz Bot is running with Perplexity AI...")
+    print("Bot is starting...")
     application.run_polling()
 
 if __name__ == '__main__':
