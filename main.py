@@ -8,10 +8,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-
 logger = logging.getLogger(__name__)
 
-# Bot token and API key - Environment variables से लें
+# Bot token और API key - Environment variables से लें
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
@@ -19,9 +18,12 @@ PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bot is active and running!")
 
-# Import group and personal modules
-import group
-import personal
+# Import group और personal modules
+try:
+    import group
+    import personal
+except ImportError as e:
+    logger.error(f"Error importing modules: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
@@ -29,7 +31,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type
     
     if chat_type == "private":
-        await personal.start_command(update, context)
+        try:
+            await personal.start_command(update, context)
+        except NameError:
+            await update.message.reply_text("Personal module not available.")
     else:
         await update.message.reply_text(
             f"👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
@@ -110,25 +115,43 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "then use /quiz in the group to start quizzes."
         )
     else:
-        await group.group_quiz_command(update, context)
+        try:
+            await group.group_quiz_command(update, context)
+        except NameError:
+            await update.message.reply_text("Group module not available.")
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stop command for group quizzes."""
-    await group.stop_command(update, context)
+    try:
+        await group.stop_command(update, context)
+    except NameError:
+        await update.message.reply_text("Group module not available.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks."""
     query = update.callback_query
     data = query.data
     
-    if data.startswith('main_'):
-        action = data[5:]
-        await personal.handle_main_menu(update, context, action)
-    elif data.startswith('category_'):
-        category = data[9:]
-        if category == 'back':
-            await personal.handle_main_menu(update, context, 'back')
-        else:
+    try:
+        if data.startswith('main_'):
+            action = data[5:]
+            await personal.handle_main_menu(update, context, action)
+        elif data.startswith('category_'):
+            category = data[9:]
+            if category == 'back':
+                await personal.handle_main_menu(update, context, 'back')
+            else:
+                keyboard = [
+                    [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                    [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text(
+                    text="❌ Quizzes are only available in groups!\n\n"
+                    "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                    reply_markup=reply_markup
+                )
+        elif data.startswith('subject_'):
             keyboard = [
                 [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
                 [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
@@ -139,74 +162,82 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
                 reply_markup=reply_markup
             )
-    elif data.startswith('subject_'):
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-            "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    elif data.startswith('group_subject_'):
-        subject = data.split('_', 2)[2]
-        await group.handle_group_subject_selection(update, context, subject)
-    elif data.startswith('diff_'):
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-            "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    elif data.startswith('answer_'):
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-            "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    elif data == 'continue':
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-            "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
-    elif data == 'new_quiz':
-        await quiz_command(update, context)
-    elif data.startswith('exam_'):
-        keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-            [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="❌ Quizzes are only available in groups!\n\n"
-            "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
-            reply_markup=reply_markup
-        )
+        elif data.startswith('group_subject_'):
+            subject = data.split('_', 2)[2]
+            await group.handle_group_subject_selection(update, context, subject)
+        elif data.startswith('diff_'):
+            keyboard = [
+                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="❌ Quizzes are only available in groups!\n\n"
+                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                reply_markup=reply_markup
+            )
+        elif data.startswith('answer_'):
+            keyboard = [
+                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="❌ Quizzes are only available in groups!\n\n"
+                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                reply_markup=reply_markup
+            )
+        elif data == 'continue':
+            keyboard = [
+                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="❌ Quizzes are only available in groups!\n\n"
+                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                reply_markup=reply_markup
+            )
+        elif data == 'new_quiz':
+            await quiz_command(update, context)
+        elif data.startswith('exam_'):
+            keyboard = [
+                [InlineKeyboardButton("➕ Add me in Group", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="❌ Quizzes are only available in groups!\n\n"
+                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                reply_markup=reply_markup
+            )
+    except Exception as e:
+        logger.error(f"Error in button handler: {e}")
+        await query.answer("An error occurred.")
+
+async def poll_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle poll answers."""
+    try:
+        await group.handle_poll_answer(update, context)
+    except NameError:
+        logger.error("Group module not available for poll handling.")
 
 def main():
     """Start the bot."""
+    # Bot token check करें
+    if not TELEGRAM_BOT_TOKEN:
+        logger.error("TELEGRAM_BOT_TOKEN environment variable not set!")
+        return
+    
     # Get PORT from environment variable for Render deployment
     PORT = int(os.environ.get("PORT", 8443))
     
-    # Create the Application and pass it your bot's token
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # Create the Application
+    try:
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    except Exception as e:
+        logger.error(f"Failed to create application: {e}")
+        return
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
@@ -215,23 +246,30 @@ def main():
     application.add_handler(CommandHandler("stop", stop_command))
     application.add_handler(CommandHandler("subjects", subjects_command))
     application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(PollAnswerHandler(group.handle_poll_answer))
+    application.add_handler(PollAnswerHandler(poll_answer_handler))
     application.add_handler(CommandHandler("health", health_check))
     
     # For Render deployment, use webhooks instead of polling
     if "RENDER" in os.environ:
         # Webhook mode for production
-        WEBHOOK_URL = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}"
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=f"{WEBHOOK_URL}/webhook",
-            url_path="/webhook"
-        )
+        try:
+            WEBHOOK_URL = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}"
+            logger.info(f"Starting webhook at {WEBHOOK_URL}")
+            application.run_webhook(
+                listen="0.0.0.0",
+                port=PORT,
+                webhook_url=f"{WEBHOOK_URL}/webhook",
+                url_path="/webhook"
+            )
+        except Exception as e:
+            logger.error(f"Failed to start webhook: {e}")
     else:
         # Polling mode for development
-        print("Commerce Quiz Bot is running with Perplexity AI...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        try:
+            logger.info("Commerce Quiz Bot is running with Perplexity AI...")
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
+        except Exception as e:
+            logger.error(f"Failed to start polling: {e}")
 
 if __name__ == '__main__':
     main()
