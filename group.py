@@ -30,7 +30,7 @@ async def is_group_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return False
 
 async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start a new group quiz by asking for subject - Admin only."""
+    """Start a new group quiz by asking for exam type first."""
     chat_id = update.effective_chat.id
     
     # Check if user is admin
@@ -49,7 +49,7 @@ async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Log user activity
     try:
         import log
-        await log.log_user_activity(update, context, "Started group quiz (Admin)")
+        await log.log_user_activity(update, context, "Started quiz selection (Admin)")
     except ImportError:
         pass
     
@@ -60,80 +60,75 @@ async def group_quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Clear previous user scores for this group
     user_scores[chat_id] = {}
         
-    # Ask for subject in group
+    # Ask for exam type first
     keyboard = [
-        [
-            InlineKeyboardButton("Accountancy", callback_data='group_subject_Accountancy'),
-            InlineKeyboardButton("Business Studies", callback_data='group_subject_Business Studies'),
-        ],
-        [
-            InlineKeyboardButton("Economics", callback_data='group_subject_Economics'),
-            InlineKeyboardButton("Mathematics", callback_data='group_subject_Mathematics'),
-        ],
-        [
-            InlineKeyboardButton("English", callback_data='group_subject_English'),
-            InlineKeyboardButton("Info Practices", callback_data='group_subject_Information Practices'),
-        ],
+        [InlineKeyboardButton("12th Board Commerce", callback_data='exam_12th')],
+        [InlineKeyboardButton("UPSC CSE", callback_data='exam_upsc')],
         [InlineKeyboardButton("❌ Cancel", callback_data='group_cancel')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('📚 Choose a subject for the group quiz:', reply_markup=reply_markup)
+    
+    await update.message.reply_text(
+        "📝 *Select Examination Type:*\n\n"
+        "Choose the type of quiz you want to start:",
+        parse_mode='Markdown',
+        reply_markup=reply_markup
+    )
 
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Stop an ongoing group quiz - Admin only."""
-    chat_id = update.effective_chat.id
+async def handle_exam_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, exam_type: str):
+    """Handle exam type selection."""
+    query = update.callback_query
+    await query.answer()
     
-    # Check if user is admin
-    if not await is_group_admin(update, context):
-        await update.message.reply_text("❌ Only group admins can stop quizzes!")
-        
-        # Log unauthorized access attempt
+    if exam_type == '12th':
+        # Show 12th board subjects
+        keyboard = [
+            [
+                InlineKeyboardButton("Accountancy", callback_data='group_subject_Accountancy'),
+                InlineKeyboardButton("Business Studies", callback_data='group_subject_Business Studies'),
+            ],
+            [
+                InlineKeyboardButton("Economics", callback_data='group_subject_Economics'),
+                InlineKeyboardButton("Mathematics", callback_data='group_subject_Mathematics'),
+            ],
+            [
+                InlineKeyboardButton("English", callback_data='group_subject_English'),
+                InlineKeyboardButton("Info Practices", callback_data='group_subject_Information Practices'),
+            ],
+            [InlineKeyboardButton("🔙 Back to Exam Selection", callback_data='exam_back')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="📚 *12th Board Commerce Quiz*\n\nSelect a subject:",
+            parse_mode='Markdown',
+            reply_markup=reply_markup
+        )
+    
+    elif exam_type == 'upsc':
+        # Import and use UPSC module
         try:
-            import log
-            await log.log_user_activity(update, context, "Tried to stop quiz without admin rights")
-        except ImportError:
-            pass
-            
-        return
+            import upsc
+            await upsc.start_upsc_quiz(update, context)
+        except ImportError as e:
+            logger.error(f"UPSC module import error: {e}")
+            await query.edit_message_text(
+                text="❌ UPSC module not available. Please contact administrator."
+            )
     
-    if chat_id not in group_quizzes or not group_quizzes[chat_id].get('active', False):
-        await update.message.reply_text("❌ No active quiz found in this group!")
-        return
-    
-    # Get group name for logging
-    group_name = update.effective_chat.title or f"Group {chat_id}"
-    
-    # Stop the quiz
-    group_quizzes[chat_id]['active'] = False
-    
-    # Remove from active quizzes set
-    if chat_id in active_group_quizzes:
-        active_group_quizzes.remove(chat_id)
-    
-    # Remove the job from job queue
-    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
-    for job in current_jobs:
-        job.schedule_removal()
-    
-    # Get scores for logging
-    scores = user_scores.get(chat_id, {})
-    
-    # Send leaderboard
-    await send_leaderboard(context, chat_id, group_name)
-    
-    # Log quiz stop
-    try:
-        import log
-        await log.log_quiz_stopped(update, context, group_name, chat_id, scores)
-        await log.log_admin_action(update, context, "Stopped quiz", group_name)
-    except ImportError:
-        pass
-    
-    # Clean up
-    if chat_id in group_quizzes:
-        del group_quizzes[chat_id]
-    
-    await update.message.reply_text("✅ Quiz stopped successfully! Leaderboard has been posted.")
+    elif exam_type == 'back':
+        # Go back to exam selection
+        keyboard = [
+            [InlineKeyboardButton("12th Board Commerce", callback_data='exam_12th')],
+            [InlineKeyboardButton("UPSC CSE", callback_data='exam_upsc')],
+            [InlineKeyboardButton("❌ Cancel", callback_data='group_cancel')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            "📝 *Select Examination Type:*\n\n"
+            "Choose the type of quiz you want to start:",
+            parse_mode='Markdown',
+            reply_markup=reply_markup
+        )
 
 async def handle_group_subject_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, subject: str):
     """Handle group subject selection."""
@@ -150,6 +145,7 @@ async def handle_group_subject_selection(update: Update, context: ContextTypes.D
     
     # Initialize group quiz
     group_quizzes[chat_id] = {
+        'exam_type': '12th Board',
         'subject': subject,
         'questions': [],
         'current_question': 0,
@@ -361,7 +357,6 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # 🚫 REMOVED: DM explanation sending
         # Now only score is updated, no DM is sent to user
-        # This makes the quiz cleaner and less intrusive
 
 async def send_leaderboard(context, chat_id, group_name):
     """Send the leaderboard with all participants' scores."""
@@ -410,6 +405,62 @@ async def send_leaderboard(context, chat_id, group_name):
         text=leaderboard_text,
         parse_mode='Markdown'
     )
+
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop an ongoing group quiz - Admin only."""
+    chat_id = update.effective_chat.id
+    
+    # Check if user is admin
+    if not await is_group_admin(update, context):
+        await update.message.reply_text("❌ Only group admins can stop quizzes!")
+        
+        # Log unauthorized access attempt
+        try:
+            import log
+            await log.log_user_activity(update, context, "Tried to stop quiz without admin rights")
+        except ImportError:
+            pass
+            
+        return
+    
+    if chat_id not in group_quizzes or not group_quizzes[chat_id].get('active', False):
+        await update.message.reply_text("❌ No active quiz found in this group!")
+        return
+    
+    # Get group name for logging
+    group_name = update.effective_chat.title or f"Group {chat_id}"
+    
+    # Stop the quiz
+    group_quizzes[chat_id]['active'] = False
+    
+    # Remove from active quizzes set
+    if chat_id in active_group_quizzes:
+        active_group_quizzes.remove(chat_id)
+    
+    # Remove the job from job queue
+    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
+    for job in current_jobs:
+        job.schedule_removal()
+    
+    # Get scores for logging
+    scores = user_scores.get(chat_id, {})
+    
+    # Send leaderboard
+    await send_leaderboard(context, chat_id, group_name)
+    
+    # Log quiz stop
+    try:
+        import log
+        await log.log_quiz_stopped(update, context, group_name, chat_id, scores)
+        await log.log_admin_action(update, context, "Stopped quiz", group_name)
+    except ImportError:
+        pass
+    
+    # Clean up
+    if chat_id in group_quizzes:
+        del group_quizzes[chat_id]
+    
+    await update.message.reply_text("✅ Quiz stopped successfully! Leaderboard has been posted.")
 
 async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_questions: int = 20):
     """Generate quiz questions using Perplexity AI API."""
@@ -479,21 +530,4 @@ async def generate_quiz_with_perplexity(subject: str, difficulty: str, num_quest
                 json_str = content[start_idx:end_idx]
                 quiz_data = json.loads(json_str)
                 return quiz_data
-            except (json.JSONDecodeError, KeyError, IndexError):
-                logger.error("Failed to parse JSON from Perplexity response")
-                return None
-        else:
-            logger.error(f"Perplexity API error: {response.status_code} - {response.text}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"Error generating quiz with Perplexity: {e}")
-        return None
-
-def get_active_quizzes_count():
-    """Get count of active quizzes across all groups."""
-    return len(active_group_quizzes)
-
-def get_all_active_groups():
-    """Get all active groups with quizzes."""
-    return active_group_quizzes.copy()
+            except (json.JSONDecodeError
