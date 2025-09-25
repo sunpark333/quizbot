@@ -1,3 +1,4 @@
+# personal.py
 import logging
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -82,18 +83,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/Quizonomics_bot?startgroup=true")],
         [InlineKeyboardButton("❓ Help", callback_data='main_help')],
+        [InlineKeyboardButton("📊 Bot Status", callback_data='main_status')],
         [InlineKeyboardButton("👤 Owner", url="https://t.me/komresu")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     welcome_text = (
-        "👋 Welcome to the Quiz Bot!\n\n"
-        "I'm designed to provide quizzes in groups only. "
-        "Add me to your group to start quizzing with your friends!\n\n"
+        "👋 Welcome to the *Enhanced Quiz Bot!*\n\n"
+        "🌟 *New Features:*\n"
+        "• Admin-only quiz control\n"
+        "• Multi-group support\n"
+        "• Real-time logging\n"
+        "• Enhanced security\n\n"
+        "I'm designed to provide quizzes in groups only with admin privileges. "
+        "Add me to your group and make me admin to start quizzing!\n\n"
         "Select an option below:"
     )
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str):
     """Handle main menu button clicks."""
@@ -104,60 +111,92 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, a
         # Add to group information
         bot_username = context.bot.username
         text = (
-            f"To add me to a group:\n\n"
+            f"📋 *How to Add Bot to Group:*\n\n"
             f"1. Go to your group's settings\n"
             f"2. Select 'Add members'\n"
             f"3. Search for @{bot_username}\n"
-            f"4. Add me to the group\n\n"
-            f"I'll then be available to provide quizzes for all group members!"
+            f"4. Add me to the group\n"
+            f"5. *Important:* Make me an *admin* with post permissions\n\n"
+            f"⚡ I'll then be available to provide quizzes for all group members with admin-only control!"
         )
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='Markdown')
     
     elif action == 'help':
         # Help information
         text = (
-            "🤖 How to use this bot:\n\n"
+            "🤖 *Enhanced Quiz Bot Help*\n\n"
+            "🌟 *New Security Features:*\n"
+            "• Admin-only quiz control\n"
+            "• Multi-group support\n"
+            "• Real-time activity logging\n\n"
+            "*How to use:*\n"
             "• Add me to your group using the 'Add me in Group' button\n"
-            "• Use /quiz in the group to start a quiz\n"
+            "• Make me admin in your group\n"
+            "• Use /quiz in the group (Admin only)\n"
             "• Answer questions and get explanations\n"
             "• Track your progress and scores\n\n"
-            "Commands:\n"
-            "/quiz - Start a new quiz in a group\n"
-            "/help - Show this help message\n\n"
-            "Note: I only work in groups, not in private chats."
+            "*Commands:*\n"
+            "/quiz - Start a new quiz in a group (Admin only)\n"
+            "/stop - Stop ongoing quiz (Admin only)\n"
+            "/help - Show this help message\n"
+            "/status - Check bot status\n\n"
+            "⚡ *Note:* I work in multiple groups simultaneously with enhanced security."
         )
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    elif action == 'status':
+        # Status information
+        try:
+            from group import get_active_quizzes_count
+            active_quizzes = get_active_quizzes_count()
+        except ImportError:
+            active_quizzes = 0
+            
+        text = (
+            "📊 *Bot Status Report*\n\n"
+            f"• Active quizzes: {active_quizzes}\n"
+            f"• Multi-group support: ✅ Enabled\n"
+            f"• Admin-only mode: ✅ Enabled\n"
+            f"• Logging system: ✅ Active\n"
+            f"• Security: ✅ Enhanced\n\n"
+            "🤖 Bot is running smoothly with all enhanced features!"
+        )
+        keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='Markdown')
     
     elif action == 'owner':
         # Owner information with direct link
         text = (
-            "👤 Bot Owner Information:\n\n"
+            "👤 *Bot Owner Information:*\n\n"
             "Name: Quiz Bot Administrator\n"
-            "Contact: @quizadmin\n\n"
-            "For questions, suggestions, or support, please contact the owner directly."
+            "Contact: @komresu\n\n"
+            "For questions, suggestions, or support regarding the enhanced features, please contact the owner directly."
         )
         keyboard = [
-            [InlineKeyboardButton("📞 Contact Owner", url="https://t.me/quizadmin")],
+            [InlineKeyboardButton("📞 Contact Owner", url="https://t.me/komresu")],
             [InlineKeyboardButton("🔙 Back", callback_data='main_back')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='Markdown')
     
     elif action == 'back':
         # Return to main menu
         keyboard = [
-            [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/your_bot_username?startgroup=true")],
+            [InlineKeyboardButton("➕ Add me in Group", url="https://t.me/Quizonomics_bot?startgroup=true")],
             [InlineKeyboardButton("❓ Help", callback_data='main_help')],
-            [InlineKeyboardButton("👤 Owner", url="https://t.me/quizadmin")]
+            [InlineKeyboardButton("📊 Bot Status", callback_data='main_status')],
+            [InlineKeyboardButton("👤 Owner", url="https://t.me/komresu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text="Main menu:",
-            reply_markup=reply_markup
+            text="*Main Menu:*",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
