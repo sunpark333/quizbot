@@ -91,10 +91,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "👋 Welcome to the *Enhanced Quiz Bot!*\n\n"
         "🌟 *New Features:*\n"
+        "• 12th Board Commerce & UPSC CSE Exams\n"
         "• Admin-only quiz control\n"
         "• Multi-group support\n"
-        "• Real-time logging\n"
-        "• Enhanced security\n\n"
+        "• Real-time logging\n\n"
         "I'm designed to provide quizzes in groups only with admin privileges. "
         "Add me to your group and make me admin to start quizzing!\n\n"
         "Select an option below:"
@@ -127,7 +127,10 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, a
         # Help information
         text = (
             "🤖 *Enhanced Quiz Bot Help*\n\n"
-            "🌟 *New Security Features:*\n"
+            "🌟 *Available Examinations:*\n"
+            "• 12th Board Commerce\n"
+            "• UPSC Civil Services (CSE)\n\n"
+            "*New Security Features:*\n"
             "• Admin-only quiz control\n"
             "• Multi-group support\n"
             "• Real-time activity logging\n\n"
@@ -135,8 +138,9 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, a
             "• Add me to your group using the 'Add me in Group' button\n"
             "• Make me admin in your group\n"
             "• Use /quiz in the group (Admin only)\n"
-            "• Answer questions and get explanations\n"
-            "• Track your progress and scores\n\n"
+            "• Select examination type (12th Board/UPSC)\n"
+            "• Choose subject and start quiz\n"
+            "• Answer questions and track scores\n\n"
             "*Commands:*\n"
             "/quiz - Start a new quiz in a group (Admin only)\n"
             "/stop - Stop ongoing quiz (Admin only)\n"
@@ -161,6 +165,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, a
             f"• Active quizzes: {active_quizzes}\n"
             f"• Multi-group support: ✅ Enabled\n"
             f"• Admin-only mode: ✅ Enabled\n"
+            f"• Available Exams: ✅ 12th Board & UPSC CSE\n"
             f"• Logging system: ✅ Active\n"
             f"• Security: ✅ Enhanced\n\n"
             "🤖 Bot is running smoothly with all enhanced features!"
@@ -213,6 +218,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data='main_back')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text=f"{exam.upper()} exam preparation is coming soon! Check back later for updates.",
+            text=f"{exam.upper()} exam preparation is fully supported! Use /quiz in a group to start.",
             reply_markup=reply_markup
         )
