@@ -359,14 +359,9 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         user_scores[chat_id][user_id] += 1
         
-        # Send immediate feedback to the user who answered correctly
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"✅ Correct! {question.get('explanation', '')}"
-            )
-        except Exception as e:
-            logger.error(f"Could not send message to user: {e}")
+        # 🚫 REMOVED: DM explanation sending
+        # Now only score is updated, no DM is sent to user
+        # This makes the quiz cleaner and less intrusive
 
 async def send_leaderboard(context, chat_id, group_name):
     """Send the leaderboard with all participants' scores."""
