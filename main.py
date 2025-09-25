@@ -38,7 +38,8 @@ async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Bot is running smoothly\n"
         f"• Active quizzes: {active_quizzes}\n"
         f"• Multi-group support: Enabled\n"
-        f"• Admin-only mode: Enabled"
+        f"• Admin-only mode: Enabled\n"
+        f"• Available Exams: 12th Board & UPSC CSE"
     )
     await update.message.reply_text(health_text, parse_mode='Markdown')
 
@@ -47,12 +48,14 @@ try:
     import group
     import personal
     import log
-    logger.info("Successfully imported group, personal, and log modules")
+    import upsc
+    logger.info("Successfully imported all modules: group, personal, log, upsc")
 except ImportError as e:
     logger.error(f"Error importing modules: {e}")
     group = None
     personal = None
     log = None
+    upsc = None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
@@ -79,12 +82,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
-                "🤖 *Welcome to 12th Grade Commerce Quiz Bot!*\n\n"
+                "🤖 *Welcome to Enhanced Quiz Bot!*\n\n"
                 "🌟 *New Features:*\n"
+                "• 12th Board Commerce & UPSC CSE Exams\n"
                 "• Admin-only quiz control\n"
                 "• Multi-group support\n"
-                "• Real-time logging\n"
-                "• Enhanced security\n\n"
+                "• Real-time logging\n\n"
                 "Please add me to a group to start quizzes!",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
@@ -94,12 +97,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_groups.add(update.effective_chat.id)
         
         welcome_text = (
-            f"👋 Hello everyone! Welcome to the 12th Grade Commerce Quiz Bot.\n\n"
+            f"👋 Hello everyone! Welcome to the Enhanced Quiz Bot.\n\n"
             "🆕 *Enhanced Features:*\n"
+            "• 12th Board Commerce & UPSC CSE Exams\n"
             "• Only admins can start/stop quizzes\n"
             "• Multi-group support enabled\n"
-            "• Real-time activity logging\n"
-            "• Enhanced security measures\n\n"
+            "• Real-time activity logging\n\n"
             "*Available Commands:*\n"
             "/quiz - Start a quiz session (Admins only)\n"
             "/stop - Stop ongoing quiz (Admins only)\n"
@@ -122,6 +125,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text = """
 🤖 *Quiz Bot Help - Private Chat* 🤖
 
+*Available Examinations:*
+• 12th Board Commerce
+• UPSC Civil Services (CSE)
+
 *New Security Features:*
 • Admin-only quiz control in groups
 • Multi-group support
@@ -136,13 +143,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 1. Add me to your group using the 'Add me in Group' button
 2. Make me admin in your group
 3. Use /quiz in the group to start quizzes (Admin only)
-4. Answer poll questions in the group
+4. Select examination type (12th Board/UPSC)
+5. Choose subject and start quiz
 
 *Note:* I work in multiple groups simultaneously with enhanced security.
 """
     else:
         help_text = """
-📚 *12th Grade Commerce Quiz Bot Help* 📚
+📚 *Enhanced Quiz Bot Help* 📚
+
+*Available Examinations:*
+• 12th Board Commerce
+• UPSC Civil Services (CSE)
 
 *Enhanced Security Features:*
 • Only group admins can start/stop quizzes
@@ -156,20 +168,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /help - Show this help message
 /status - Check bot status
 
-*Subjects Available:*
-- Accountancy
-- Business Studies
-- Economics
-- Mathematics
-- English
-- Information Practices
+*12th Board Subjects:*
+- Accountancy, Business Studies, Economics
+- Mathematics, English, Information Practices
+
+*UPSC CSE Subjects:*
+- History, Geography, Polity, Economy
+- Science & Tech, Environment, Current Affairs
 
 *How to use:*
 1. Use /quiz to start a new quiz (Admin only)
-2. Select your subject
-3. Answer multiple-choice questions via polls
-4. Get your score at the end with explanations
-5. Use /stop to end quiz early (Admin only)
+2. Select examination type (12th Board/UPSC)
+3. Choose your subject
+4. Answer multiple-choice questions via polls
+5. Get your score at the end with leaderboard
+6. Use /stop to end quiz early (Admin only)
 """
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -180,13 +193,29 @@ async def subjects_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if log:
         await log.log_user_activity(update, context, "Viewed subjects")
     
-    subjects = [
-        "Accountancy", "Business Studies", "Economics",
-        "Mathematics", "English", "Information Practices"
-    ]
-    
-    text = "📖 *Available Subjects:*\n\n" + "\n".join([f"• {subject}" for subject in subjects])
-    await update.message.reply_text(text, parse_mode='Markdown')
+    subjects_text = """
+📖 *Available Examinations & Subjects:*
+
+*12th Board Commerce:*
+• Accountancy
+• Business Studies
+• Economics
+• Mathematics
+• English
+• Information Practices
+
+*UPSC Civil Services (CSE):*
+• History
+• Geography
+• Polity
+• Economy
+• Science & Technology
+• Environment
+• Current Affairs
+
+Use /quiz to start a quiz and select your examination type!
+"""
+    await update.message.reply_text(subjects_text, parse_mode='Markdown')
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show bot status and active quizzes."""
@@ -203,9 +232,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Active quizzes: {active_quizzes}\n"
         f"• Multi-group support: ✅ Enabled\n"
         f"• Admin-only mode: ✅ Enabled\n"
+        f"• Available Exams: ✅ 12th Board & UPSC CSE\n"
         f"• Logging: ✅ Active\n"
         f"• API Status: ✅ Connected\n\n"
-        "🤖 Bot is running smoothly!"
+        "🤖 Bot is running smoothly with all enhanced features!"
     )
     await update.message.reply_text(status_text, parse_mode='Markdown')
     
@@ -271,9 +301,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data.startswith('main_') and personal:
             action = data[5:]
             await personal.handle_main_menu(update, context, action)
+        elif data.startswith('exam_') and group:
+            exam_type = data[5:]
+            await group.handle_exam_selection(update, context, exam_type)
+        elif data == 'exam_back':
+            # Go back to exam selection
+            await group.handle_exam_selection(update, context, 'back')
         elif data.startswith('group_subject_') and group:
             subject = data.split('_', 2)[2]
             await group.handle_group_subject_selection(update, context, subject)
+        elif data.startswith('upsc_subject_'):
+            try:
+                subject = data.split('_', 2)[2]
+                await upsc.handle_upsc_subject_selection(update, context, subject)
+            except Exception as e:
+                logger.error(f"Error in UPSC subject selection: {e}")
+                await query.edit_message_text("❌ UPSC module error. Please try again.")
         elif data == 'group_cancel' and group:
             await group.handle_group_cancel(update, context)
         else:
@@ -284,8 +327,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="❌ Module not available or Quizzes are only available in groups!\n\n"
-                "Please add me to a group using the 'Add me in Group' button below to start quizzes.",
+                text="❌ Action not available!",
                 reply_markup=reply_markup
             )
     except Exception as e:
@@ -339,6 +381,7 @@ async def on_bot_start(application):
                 f"🌐 *Multi-Group System Active*\n\n"
                 f"• Bot started successfully\n"
                 f"• Admin-only mode: Enabled\n"
+                f"• Available Exams: 12th Board & UPSC CSE\n"
                 f"• Active quizzes: {active_quizzes}\n"
                 f"• Ready for multiple groups\n"
                 f"• Logging system: Active"
@@ -405,7 +448,7 @@ def main():
     else:
         # Polling mode for development
         try:
-            logger.info("Commerce Quiz Bot is running with Multi-Group Support in polling mode...")
+            logger.info("Enhanced Quiz Bot is running with Multi-Group & UPSC Support in polling mode...")
             application.run_polling(
                 allowed_updates=Update.ALL_TYPES,
                 drop_pending_updates=True
